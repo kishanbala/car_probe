@@ -1,25 +1,717 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Probe">
-<title>Storage probe</title>
-<style>body{font:16px/1.5 system-ui;margin:0;padding:24px;max-width:480px}
-b{font-weight:600}button{font:inherit;padding:12px 16px;margin:4px 0;width:100%}
-pre{background:#eee;padding:12px;border-radius:8px;white-space:pre-wrap;word-break:break-all}</style></head>
-<body>
-<h2>Storage probe</h2>
-<pre id="out"></pre>
-<button id="w">Write marker</button>
-<button id="c">Clear</button>
-<script>
-const K='probe',o=document.getElementById('out');
-const mode=(navigator.standalone||matchMedia('(display-mode: standalone)').matches)?'HOME-SCREEN APP':'SAFARI TAB';
-const h=decodeURIComponent(location.hash.slice(1));
-if(h){try{localStorage.setItem('inbox',h)}catch(e){}history.replaceState(null,'',location.pathname)}
-function show(){let m,i;try{m=localStorage.getItem(K);i=localStorage.getItem('inbox')}catch(e){m='ERR '+e}
-o.textContent='Running as: '+mode+'\nMarker: '+(m||'(empty)')+'\nInbox (from URL #): '+(i?i.slice(0,80):'(empty)')}
-document.getElementById('w').onclick=()=>{localStorage.setItem(K,mode+' @ '+new Date().toLocaleTimeString());show()};
-document.getElementById('c').onclick=()=>{localStorage.removeItem(K);localStorage.removeItem('inbox');show()};
-show();
-</script></body></html>
+<meta name="theme-color" content="#f4f5f7">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<title>Car shortlist</title>
+<style>:root{--bg:#f4f5f7;--card:#fff;--tx:#14161a;--mut:#667085;--bd:#e4e7ec;--g:#1f9d55;--a:#d9822b;--r:#d64545;--n:#8a8f98;--ac:#2f5bea}
+@media(prefers-color-scheme:dark){:root{--bg:#0d0e11;--card:#16181c;--tx:#f2f3f5;--mut:#9aa1ad;--bd:#262a31;--ac:#6f8cff}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.45 -apple-system,system-ui,Segoe UI,Roboto,sans-serif}
+main{max-width:560px;margin:0 auto;padding:max(16px,env(safe-area-inset-top)) 16px 110px}
+h1{font-size:22px;margin:4px 0 14px;font-weight:650}
+h2{font-size:13px;margin:22px 0 8px;font-weight:600;color:var(--mut);text-transform:uppercase;letter-spacing:.04em}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:16px;padding:14px}
+.row{display:flex;align-items:center;gap:10px}.sp{justify-content:space-between}
+.mut{color:var(--mut)}small{font-size:13px;color:var(--mut)}
+textarea{width:100%;min-height:150px;border:1px solid var(--bd);border-radius:14px;padding:12px;font:15px/1.4 ui-monospace,Menlo,monospace;background:var(--card);color:var(--tx);resize:vertical}
+input[type=number]{width:100%;border:1px solid var(--bd);border-radius:10px;padding:10px;font:16px inherit;background:var(--card);color:var(--tx)}
+button{font:inherit;border:0;border-radius:14px;padding:14px 16px;min-height:48px;background:var(--card);color:var(--tx);border:1px solid var(--bd);cursor:pointer}
+button.pri{background:var(--ac);color:#fff;border-color:var(--ac);font-weight:600}
+button.danger{color:var(--r)}
+button.sm{min-height:36px;padding:6px 12px;border-radius:10px;font-size:14px}
+.full{width:100%}.mt{margin-top:10px}
+.hero{border-radius:20px;padding:18px;color:#fff;display:flex;align-items:center;gap:16px}
+.hero.Strong{background:var(--g)}.hero.Maybe{background:var(--a)}.hero.Skip{background:var(--r)}.hero.Filtered{background:#5b6270}.hero.Not{background:#6b7280}
+.hero .b{font-size:26px;font-weight:700;line-height:1.1}.hero small{color:rgba(255,255,255,.85)}
+.ring{flex:none}.ring text{fill:#fff;font:700 22px -apple-system,system-ui,sans-serif}
+.sum{margin:12px 0 2px;font-weight:600}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.chip{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:10px 12px}
+.chip .ch{display:flex;justify-content:space-between;font-size:14px}
+.bar{height:6px;background:var(--bd);border-radius:6px;margin:7px 0 6px;overflow:hidden}
+.bar i{display:block;height:100%;border-radius:6px}
+.green{background:var(--g)}.amber{background:var(--a)}.red{background:var(--r)}.grey{background:var(--n)}
+.flag{display:flex;gap:8px;padding:6px 0}.flag:before{content:"!";flex:none;width:20px;height:20px;border-radius:10px;background:var(--a);color:#fff;font:700 13px/20px sans-serif;text-align:center}
+.bad{border-color:var(--r);color:var(--r)}
+.seg{display:flex;gap:6px;margin-top:10px}.seg button{flex:1;min-height:38px;padding:6px;font-size:14px}.seg button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+.big{font-size:28px;font-weight:700}
+.tabs{position:fixed;left:0;right:0;bottom:0;display:flex;background:var(--card);border-top:1px solid var(--bd);padding:6px 8px max(8px,env(safe-area-inset-bottom));gap:6px}
+.tabs button{flex:1;border:0;background:none;border-radius:12px;color:var(--mut);font-size:15px}
+.tabs button.on{color:var(--ac);font-weight:650}
+.li{display:flex;align-items:center;gap:12px;padding:12px;border-bottom:1px solid var(--bd);cursor:pointer}
+.li:last-child{border-bottom:0}.dot{flex:none;width:12px;height:12px;border-radius:6px}
+.li .t{font-weight:600}.li .sc{margin-left:auto;font-weight:700}
+table{border-collapse:collapse;width:100%;font-size:14px}th,td{padding:8px 6px;text-align:left;border-bottom:1px solid var(--bd);white-space:nowrap}th{color:var(--mut);font-weight:600;cursor:pointer}
+.scroll{overflow-x:auto;margin:0 -16px;padding:0 16px}
+.meter{height:8px;background:var(--bd);border-radius:8px;overflow:hidden}.meter i{display:block;height:100%;background:var(--ac)}
+label.f{display:block;font-size:14px;color:var(--mut);margin:10px 0 4px}
+.chk{display:flex;flex-wrap:wrap;gap:8px}.chk label{display:flex;align-items:center;gap:6px;border:1px solid var(--bd);border-radius:10px;padding:8px 10px;font-size:14px}
+.toast{position:fixed;left:50%;bottom:92px;transform:translateX(-50%);background:#222;color:#fff;padding:10px 16px;border-radius:12px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s;max-width:90%;text-align:center}
+.toast.on{opacity:1}
+.back{background:none;border:0;padding:8px 0;min-height:0;color:var(--ac);font-weight:600}
+.ok{color:var(--g)}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chips button{min-height:38px;padding:6px 14px;border-radius:999px;font-size:15px}
+.chips button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+input[type=range]{width:100%;margin:6px 0 2px;accent-color:var(--ac);height:32px}
+.lb{display:flex;justify-content:space-between;font-size:14px;color:var(--mut);margin:16px 0 4px}.lb:first-child{margin-top:0}.lb b{color:var(--tx);font-weight:600}
+.link{background:none;border:0;min-height:0;padding:4px 0 4px 12px;color:var(--ac);font-weight:600}
+.filebtn{flex:1;display:block;text-align:center;border:1px solid var(--bd);border-radius:10px;padding:7px;font-size:14px;background:var(--card)}
+</style></head>
+<body><main id="app"></main><nav class="tabs" id="tabs"></nav><div class="toast" id="toast"></div>
+<script>(()=>{const full = (rx) => new RegExp('^(?:' + rx.source + ')$', rx.flags);
+const clip = (x, a = 0, b = 100) => Math.max(a, Math.min(b, x));
+const r1 = (x) => Math.round(x * 10) / 10;
+
+function linesOf(text) {
+  return String(text).replace(/\xa0/g, ' ').replace(/&amp;/g, '&')
+    .split(/\r\n|[\n\r\v\f\u0085\u2028\u2029]/).map((l) => l.trim()).filter(Boolean);
+}
+function num(s) {
+  const d = String(s ?? '').replace(/\D/g, '');
+  return d ? parseInt(d, 10) : null;
+}
+function after(lines, labels) {
+  const pat = new RegExp('^(?:' + labels.join('|') + ')\\d?$', 'i');
+  for (let i = 0; i < lines.length; i++) if (pat.test(lines[i]) && i + 1 < lines.length) return lines[i + 1];
+  return null;
+}
+function section(lines, start, ends) {
+  const s = new RegExp('^(?:' + start + ')$', 'i'), e = new RegExp('^(?:' + ends + ')$', 'i');
+  for (let i = 0; i < lines.length; i++) {
+    if (s.test(lines[i])) {
+      for (let j = i + 1; j < lines.length; j++) if (e.test(lines[j])) return lines.slice(i + 1, j);
+      return lines.slice(i + 1);
+    }
+  }
+  return [];
+}
+const FUEL = [
+  [/plug-in-hybrid\s*benzin|plug-in hybrid petrol/, 'phev_petrol'],
+  [/plug-in-hybrid\s*diesel/, 'phev_diesel'],
+  [/benzin|petrol|gasoline/, 'petrol'],
+  [/diesel/, 'diesel'],
+  [/elektro|electric/, 'ev'],
+  [/hybrid/, 'hybrid'],
+].map(([rx, f]) => [new RegExp('^(?:' + rx.source + ')(?:,.*)?$'), f]);
+function fuelOfLine(l) {
+  const ll = l.toLowerCase().trim();
+  if (ll.length > 40) return null;
+  for (const [rx, f] of FUEL) if (rx.test(ll)) return f;
+  return null;
+}
+
+const STOP = full(/Other vehicles from this dealer|Weitere Fahrzeuge dieses Händlers|Alternative Modelle|Mehr Details|Sicher kaufen:.*/i);
+const NOISE = full(/Language|Sprache|Appearance|Darstellung|Dark Mode|Light Mode|System Mode|Deutsch|English|Español|Français|Nederlands|Polski|Română|Русский|Čeština|Türk\w*|Svenska|Magyar|Українська|Български|Česky|Hrvatski|Italia|Luxembourg|Österreich|España|France|Deutschland|België\/Belgique|Install the app|App installieren|Imprint|Impressum|Privacy Policy|Datenschutz|Privacy Settings|Contact|Kontakt|Ad|Anzeige|Beta|NEW|NEU|Use the left and right arrow keys.*|Start car panorama|Zurück nach oben|Nach Oben|Zum Anfang|Merken|Vergleichen|Teilen/);
+const BLOB = /Studio-Fotos|Widerrufsrecht|Haftung|Passenger Car Energy|Energieverbrauchskennzeichnung|Leasingbeispiel|Irrtum und Zwischenverkauf|CO₂ ist das/i;
+function clean(text) {
+  const out = [];
+  for (const l of linesOf(text)) {
+    if (STOP.test(l)) break;
+    if (NOISE.test(l)) continue;
+    if (l.length > 250 && BLOB.test(l)) continue;
+    out.push(l);
+  }
+  return out;
+}
+
+const PROGRAMMES = [
+  { name: 'Junge Sterne', rx: /Junge Sterne/i, months: 24 },
+  { name: 'Audi Gebrauchtwagen :plus', rx: /Gebrauchtwagen\s?:\s?plus/i, months: null },
+  { name: 'Das WeltAuto', rx: /Das WeltAuto/i, months: null },
+  { name: 'BMW Premium Selection', rx: /Premium Selection/i, months: null },
+];
+const FRANCHISE_RX = /autorisierte[nr]?\s+[\w-]+\s+Partner|teilnehmenden Audi Partnern|Audi Partner|Mercedes-Benz Partner|Junge Sterne|Premium Selection|Gebrauchtwagen\s?:\s?plus|Das WeltAuto/i;
+const detectProgramme = (t) => PROGRAMMES.find((p) => p.rx.test(t)) || null;
+const detectSeal = (t) => (/Dekra Siegel/i.test(t) ? 'DEKRA Siegel' : null);
+
+const KM_RX = /^(\d{1,3}(?:[.,]\d{3})+|\d+)\s*km$/i;
+const DATE_RX = /^(?:(\d{2})\.(\d{2})\.(\d{4})|(\d{2})\/(\d{4}))$/;
+const PWR_RX = /(\d{2,3})\s*kW\s*\(\s*(\d{2,3})\s*(?:PS|hp)\s*\)/i;
+const PRICE_A = /^€\s?(\d{1,3}(?:[.,]\d{3})+)\d?(?!\d)/;
+const PRICE_B = /^(\d{1,3}(?:[.,]\d{3})+)\s?€/;
+const SKIP_P = /mtl|monat|rate|netto|net,|exkl|^ab |from|finanz|upe|anzahl|leasing/i;
+const PL = /(Sehr guter Preis|Very good price|Guter Preis|Good price|Fairer Preis|Fair price|Erhöhter Preis|Elevated price|Hoher Preis|High price)/i;
+const PL_FULL = full(PL);
+const BAND = /€\s*([\d.]+)\s*-\s*€\s*([\d.]+)/;
+const RATING = /(\d[.,]\d)\s*(?:stars|Sterne|von 5|of 5)/i;
+const ORG = /GmbH|KG\b|Autohaus|\bAG\b|OHG|e\.K\./i;
+const FLAG_RX = {
+  navigation: /Navigationssystem/i,
+  acc: /Abstandstempomat|DISTRONIC|adaptive cruise/i,
+  comfort_seats: /Komfortsitze|Komfort-Paket Sitze|Lendenwirbelstütze|Lordosenstütze/i,
+  seat_heating: /Sitzheizung/i,
+  rear_camera: /Rückfahrkamera|Surround View/i,
+  led: /LED-Scheinwerfer|LED Scheinwerfer|Scheinwerfer LED/i,
+  tow_bar: /Anhängerkupplung/i,
+  adaptive_susp: /AIRMATIC|Luftfederung|Dämpferregelung|adaptive (?:chassis|Fahrwerk|damping)/i,
+};
+const fl = (s) => parseFloat(s.replace(',', '.'));
+
+function priceOf(ls) {
+  for (const l of ls) {
+    if (l.length > 30 || SKIP_P.test(l)) continue;
+    const m = PRICE_A.exec(l) || PRICE_B.exec(l);
+    if (m) {
+      const v = num(m[1]);
+      if (v && v >= 2000 && v <= 300000) return v;
+    }
+  }
+  return null;
+}
+function firstReg(ls) {
+  const v = after(ls, ['First Registration', 'Erstzulassung']);
+  for (const c of (v ? [v] : []).concat(ls)) {
+    const m = DATE_RX.exec(c);
+    if (m) return m[1] ? [+m[3], +m[2]] : [+m[5], +m[4]];
+  }
+  return [null, null];
+}
+function claim(ls, feat, desc, labels, textRx) {
+  const v = after(ls, labels);
+  if (v && /^(?:ja|yes)$/i.test(v)) return { tier: 1, evidence: 'structured field' };
+  if (feat.some((f) => textRx.test(f))) return { tier: 2, evidence: 'dealer feature list' };
+  if (desc.some((d) => textRx.test(d))) return { tier: 3, evidence: 'dealer description' };
+  return null;
+}
+function warrantyOf(ls, txt, feat, desc) {
+  const prog = detectProgramme(txt), seal = detectSeal(txt);
+  let months = null, tier = null, ev = null;
+  const v = after(ls, ['Garantie', 'Warranty']);
+  if (v) {
+    const m = /(\d+)\s*(?:Monate|months)/i.exec(v);
+    if (m) { months = +m[1]; tier = 1; ev = 'structured: ' + v; }
+  }
+  if (prog) { tier = 1; ev = ev || 'programme: ' + prog.name; months = months || prog.months; }
+  if (tier === null) {
+    if (feat.some((f) => /Garantie|Warranty/i.test(f))) { tier = 2; ev = 'feature list mentions warranty'; }
+    else if (desc.some((d) => /Garantie|warranty/i.test(d))) { tier = 3; ev = 'description mentions Garantie'; }
+  }
+  return { programme: prog ? prog.name : null, months, tier, evidence: ev,
+    terms_vary: /unterschiedliche Garantiebedingungen|conditions vary/i.test(txt), seal };
+}
+function dealerOf(ls, txt) {
+  const d = { name: after(ls, ['Ein Fahrzeug von:', 'Anbieter des Fahrzeugs']), rating: null, reviews: null, recommend: null, described: null };
+  let m = RATING.exec(txt);
+  if (m) {
+    d.rating = fl(m[1]);
+    if (!d.name) {
+      for (let i = 0; i < ls.length; i++) {
+        if (RATING.test(ls[i])) { if (i && ORG.test(ls[i - 1])) d.name = ls[i - 1]; break; }
+      }
+    }
+  }
+  m = /(\d[\d.,]*)\s*(?:Ratings|Bewertungen)/i.exec(txt);
+  d.reviews = m ? num(m[1]) : null;
+  m = /(?:Recommendations|Referrals|Weiterempfehlungen)\s*(\d{2,3})\s*%/i.exec(txt) || /(\d{2,3})\s*%\s*(?:Recommendations|Weiterempfehlungen)/i.exec(txt);
+  d.recommend = m ? +m[1] : null;
+  m = /(?:Vehicle as described|Fahrzeug wie beschrieben)\s*(\d{2,3})\s*%/i.exec(txt) || /(\d{2,3})\s*%\s*(?:Vehicle as described|Fahrzeug wie beschrieben)/i.exec(txt);
+  d.described = m ? +m[1] : null;
+  return d;
+}
+function ymdOf(today) {
+  if (typeof today === 'string') return today.split('-').map(Number);
+  const d = today || new Date();
+  return [d.getFullYear(), d.getMonth() + 1, d.getDate()];
+}
+
+function extract(raw, today) {
+  const ls = clean(raw), txt = ls.join('\n'), L = {};
+  L.page_type = ((raw.match(/^Fahrzeug anzeigen$/gm) || []).length >= 3 || /Ihr Suchergebnis\s*-\s*\d+/.test(raw)) ? 'results' : null;
+  L.price = priceOf(ls);
+  const kv = after(ls, ['Mileage', 'Kilometerstand', 'Laufleistung', 'Kilometer']);
+  let km = kv ? KM_RX.exec(kv) : null;
+  if (!km) km = ls.map((l) => KM_RX.exec(l)).find(Boolean) || null;
+  L.km = km ? num(km[1]) : null;
+  [L.first_reg_year, L.first_reg_month] = firstReg(ls);
+  let m = PWR_RX.exec(txt);
+  [L.kw, L.ps] = m ? [+m[1], +m[2]] : [null, null];
+  L.fuel = ls.map(fuelOfLine).find(Boolean) || null;
+  L.transmission = null;
+  for (const l of ls) {
+    if (/^(?:automatik(?:getriebe)?|automatic)$/i.test(l)) { L.transmission = 'automatic'; break; }
+    if (/^(?:schaltgetriebe|manual|manuell|handschaltung)$/i.test(l)) { L.transmission = 'manual'; break; }
+  }
+  const feat = section(ls, 'Features|Ausstattung', 'Show less|Weniger anzeigen');
+  const desc = section(ls, 'Vehicle description according to seller|Fahrzeugbeschreibung', 'Show less|Weniger anzeigen|Preisbewertung|Finanzierung|Price');
+  let v = after(ls, ['Previous owners', 'Fahrzeughalter', 'Number of Vehicle Owners', 'Anzahl der Fahrzeughalter', 'Vorbesitzer']);
+  [L.owners, L.owners_tier] = v && /^\d+$/.test(v) ? [+v, 1] : [null, null];
+  if (L.owners === null) {
+    m = /(\d)\.?\s*Hand\b|Erstbesitz|first owner/i.exec(desc.join('\n'));
+    if (m) [L.owners, L.owners_tier] = [m[1] ? +m[1] : 1, 3];
+  }
+  v = after(ls, ['HU']);
+  L.hu = v ? ({ neu: 'new', new: 'new' }[v.toLowerCase()] || v) : null;
+  const low = txt.toLowerCase(), sv = after(ls, ['Verkäufer', 'Seller']);
+  if (sv && /^(?:privat(?:e)?|private seller|privatverkäufer)$/i.test(sv)) L.seller = 'private';
+  else if ((sv && /^(?:händler|dealer)$/i.test(sv)) || /about this dealer|über diesen händler|dealer rating|anbieter des fahrzeugs|ihr mercedes-benz händler|ein fahrzeug von/.test(low)) L.seller = 'dealer';
+  else if (/private seller|privatverkäufer|von privat/.test(low)) L.seller = 'private';
+  else L.seller = null;
+  L.franchise = FRANCHISE_RX.test(txt) ? true : null;
+  L.dealer = dealerOf(ls, txt);
+  L.warranty = warrantyOf(ls, txt, feat, desc);
+  L.claims = {
+    scheckheft: claim(ls, feat, desc, ['Scheckheftgepflegt', 'Service history'], /Scheckheft|Service History/i),
+    accident_free: claim(ls, feat, desc, ['Unfallfrei'], /unfallfrei|accident[- ]free/i),
+  };
+  m = /(\d{3})\/(\d{2})\s*R\s*(\d{2})/.exec(txt);
+  if (m) L.tyre = { width: +m[1], profile: +m[2], inch: +m[3] };
+  else {
+    m = /(?:Alufelgen|Leichtmetallfelgen)\s*\((\d{2})"\)|(\d{2})\s*Zoll/.exec(txt);
+    L.tyre = m ? { width: null, profile: null, inch: +(m[1] || m[2]) } : null;
+  }
+  m = /^(\d[.,]\d)\s*l\/100\s*km/m.exec(txt);
+  L.consumption = m ? fl(m[1]) : null;
+  m = /(?:Vehicle tax|Kraftfahrzeugsteuer)\s*\n?\s*€?\s?(\d{2,4})/i.exec(txt);
+  L.tax_year = m ? +m[1] : null;
+  m = /€\s?(\d[.,]\d{2})\s*\/\s*l/.exec(txt);
+  L.fuel_price = m ? fl(m[1]) : null;
+  m = PL.exec(txt);
+  L.price_label = m ? m[1].toLowerCase() : null;
+  L.price_bands = {};
+  for (let i = 0; i < ls.length - 1; i++) {
+    if (PL_FULL.test(ls[i])) {
+      const b = BAND.exec(ls[i + 1]);
+      if (b) L.price_bands[ls[i].toLowerCase()] = [num(b[1]), num(b[2])];
+    }
+  }
+  m = /Letzte[r]?\s+(?:Inspektion\s+)?bei\s+([\d.]+)\s*km/i.exec(txt);
+  L.last_service_km = m ? num(m[1]) : null;
+  L.flags = Object.fromEntries(Object.entries(FLAG_RX).map(([k, rx]) => [k, rx.test(txt)]));
+  if (L.page_type === null) L.page_type = (L.price && L.km && L.first_reg_year) ? 'listing' : 'unknown';
+  if (L.first_reg_year) {
+    const [y, mo, d] = ymdOf(today);
+    const age = (Date.UTC(y, mo - 1, d) - Date.UTC(L.first_reg_year, (L.first_reg_month || 6) - 1, 1)) / 86400000 / 365.25;
+    L.age_years = Math.round(age * 100) / 100;
+    L.km_per_year = L.km ? Math.round(L.km / Math.max(age, 0.5)) : null;
+  } else L.age_years = L.km_per_year = null;
+  L.missing = ['price', 'km', 'first_reg_year', 'fuel', 'transmission', 'owners', 'hu', 'seller'].filter((k) => L[k] === null);
+  return L;
+}
+
+function parseCards(raw) {
+  const ls = linesOf(raw), cards = [];
+  ls.forEach((a, i) => {
+    if (!a.startsWith('Preis inkl. MwSt.')) return;
+    let end = ls.findIndex((x, j) => j > i && x === 'Merken');
+    if (end < 0) end = ls.length;
+    const blk = ls.slice(i + 1, end);
+    const c = { brand: i >= 2 ? ls[i - 2] : null, model: i >= 1 ? ls[i - 1] : null, vat_deductible: !a.includes('nicht ausweisbar'),
+      price: null, first_reg_year: null, km: null, fuel: null, ps: null, dealer: null, zip: null, programme: null, seller: 'dealer' };
+    blk.forEach((l, k) => {
+      const m = PRICE_B.exec(l);
+      if (m && c.price === null && blk[k - 1] !== 'Rate') c.price = num(m[1]);
+      const d = DATE_RX.exec(l);
+      if (d && c.first_reg_year === null) c.first_reg_year = +(d[3] || d[5]);
+      const p = PWR_RX.exec(l);
+      if (p && c.ps === null) c.ps = +p[2];
+      const kk = KM_RX.exec(l);
+      if (kk && c.km === null) c.km = num(kk[1]);
+      const f = fuelOfLine(l);
+      if (f && c.fuel === null) c.fuel = f;
+      if (/^\d{5}\s+\S/.test(l) && c.zip === null) { c.zip = l; c.dealer = blk[k - 1] ?? null; }
+      if (c.programme === null) { const pr = detectProgramme(l); c.programme = pr ? pr.name : null; }
+    });
+    cards.push(c);
+  });
+  return cards;
+}
+
+const DEFAULT_PROFILE = {
+  name: 'default',
+  filters: { max_price: 30000, fuel_in: ['petrol'], seller_in: ['dealer'], max_owners: 2, min_year: 2021, max_km: 80000 },
+  tier_weights: { 1: 1.0, 2: 0.8, 3: 0.5 },
+  weights: { comfort: .22, reliability: .18, price: .18, km_age: .15, warranty: .12, dealer: .08, spec: .07 },
+  bands: { strong: 75, maybe: 55 },
+  assumptions: { km_per_year: 10000, realworld_factor: 1.15, fuel_price_fallback: 1.75 },
+};
+function applyFilters(L, profile = DEFAULT_PROFILE) {
+  const f = profile.filters, reject = [], unknown = [];
+  const chk = (key, val, bad, msg) => { if (val === null || val === undefined) unknown.push(key); else if (bad(val)) reject.push(msg(val)); };
+  if (f.max_price) chk('price', L.price, (v) => v > f.max_price, (v) => `price ${v} > ${f.max_price}`);
+  if (f.fuel_in && f.fuel_in.length) chk('fuel', L.fuel, (v) => !f.fuel_in.includes(v), (v) => `fuel ${v} not in ${f.fuel_in.join('/')}`);
+  if (f.seller_in && f.seller_in.length) chk('seller', L.seller, (v) => !f.seller_in.includes(v), (v) => `seller ${v} not allowed`);
+  if (f.max_owners) chk('owners', L.owners, (v) => v > f.max_owners, (v) => `owners ${v} > ${f.max_owners}`);
+  if (f.min_year) chk('first_reg_year', L.first_reg_year, (v) => v < f.min_year, (v) => `year ${v} < ${f.min_year}`);
+  if (f.max_km) chk('km', L.km, (v) => v > f.max_km, (v) => `km ${v} > ${f.max_km}`);
+  return { reject, unknown };
+}
+
+function dealerTrust(d, franchise, mu = 4.2, k = 20) {
+  const parts = [], r = d.rating, n = d.reviews || 0;
+  if (r !== null && r !== undefined) parts.push([0.5, clip(((n * r + k * mu) / (n + k) - 3.5) / 1.5 * 100)]);
+  if (d.described !== null && d.described !== undefined) parts.push([0.3, +d.described]);
+  if (d.recommend !== null && d.recommend !== undefined) parts.push([0.2, +d.recommend]);
+  const known = parts.length > 0;
+  let score = known ? parts.reduce((s, [w, x]) => s + w * x, 0) / parts.reduce((s, [w]) => s + w, 0) : 50;
+  if (franchise) score = Math.min(100, score + 8);
+  return { score: r1(score), known, mult: Math.round((1 + 0.1 * (score - 50) / 50) * 1000) / 1000 };
+}
+const tierWeights = (p, mult) => ({ 1: p.tier_weights[1], 2: p.tier_weights[2] * mult, 3: p.tier_weights[3] * mult });
+
+const LABEL_SCORE = { 'sehr guter preis': 95, 'very good price': 95, 'guter preis': 80, 'good price': 80, 'fairer preis': 60, 'fair price': 60, 'erhöhter preis': 35, 'elevated price': 35, 'hoher preis': 15, 'high price': 15 };
+const BAND_ORDER = [['sehr guter preis', 95], ['guter preis', 80], ['fairer preis', 60], ['erhöhter preis', 35], ['hoher preis', 15]];
+const KMY = [[10000, 95], [15000, 85], [20000, 70], [30000, 55], [40000, 40], [1e12, 25]];
+const KMT = [[30000, 95], [60000, 80], [90000, 60], [120000, 40], [1e12, 20]];
+const tab = (x, t) => t.find(([lim]) => x <= lim)[1];
+const fmt = (n) => Number(n).toLocaleString('en-US');
+
+function sPrice(L) {
+  const b = L.price_bands, p = L.price;
+  if (b && Object.keys(b).length && p) {
+    for (const [name, s] of BAND_ORDER) if (b[name] && b[name][0] <= p && p <= b[name][1]) return [s, 'market band: ' + name];
+    const vs = Object.values(b), lo = Math.min(...vs.map((v) => v[0])), hi = Math.max(...vs.map((v) => v[1]));
+    return p < lo ? [98, 'below all bands'] : [5, 'above all bands'];
+  }
+  if (L.price_label in LABEL_SCORE) return [LABEL_SCORE[L.price_label], L.price_label];
+  return [null, null];
+}
+function sKmAge(L) {
+  if (L.km === null || L.km_per_year === null) return [null, null];
+  return [(tab(L.km_per_year, KMY) + tab(L.km, KMT)) / 2, `${fmt(L.km_per_year)} km/yr, ${fmt(L.km)} km`];
+}
+function sComfort(L) {
+  const t = L.tyre;
+  if (!t || !t.inch) return [null, null];
+  const i = t.inch, p = t.profile;
+  let s = (i <= 17 && (p === null || p >= 50)) ? 90 : (i <= 18 && (p === null || p >= 45)) ? 72 : i <= 19 ? 50 : 35;
+  if (L.flags.adaptive_susp) s += 10;
+  if (L.flags.comfort_seats) s += 5;
+  return [Math.min(100, s), `${i}" wheels` + (p ? ` /${p}` : '')];
+}
+function sWarranty(L, tw) {
+  const w = L.warranty;
+  let s, note;
+  if (w.programme && w.months) {
+    s = Math.min(w.terms_vary ? 90 : 100, 40 + w.months * 2.5);
+    note = `${w.programme} ${w.months} mo` + (w.terms_vary ? ' (terms vary by dealer)' : '');
+  } else if (w.months) [s, note] = [55, `${w.months} mo stated (may be statutory)`];
+  else if (w.tier) [s, note] = [40 + 20 * tw[w.tier], 'keyword only, terms unknown'];
+  else [s, note] = [40, 'not stated'];
+  if (w.seal) [s, note] = [Math.min(100, s + 10), note + ', ' + w.seal];
+  return [Math.round(s), note];
+}
+function sSpec(L) {
+  const hits = ['navigation', 'acc', 'comfort_seats', 'seat_heating', 'rear_camera', 'led'].filter((k) => L.flags[k]).length;
+  return [40 + 10 * hits, `${hits}/6 comfort items`];
+}
+function runningCost(L, profile = DEFAULT_PROFILE, kmYear) {
+  const a = profile.assumptions;
+  kmYear = kmYear || a.km_per_year;
+  const tax = L.tax_year, fp = L.fuel_price || a.fuel_price_fallback;
+  const fuelM = L.consumption ? L.consumption * a.realworld_factor / 100 * kmYear * fp / 12 : null;
+  const parts = [tax ? tax / 12 : null, fuelM].filter((x) => x !== null);
+  return { tax_month: tax ? r1(tax / 12) : null, fuel_month: fuelM ? r1(fuelM) : null,
+    fixed_plus_fuel_month: parts.length ? Math.round(parts.reduce((s, x) => s + x, 0)) : null, km_year: kmYear,
+    excludes: 'insurance, parking, depreciation, maintenance' };
+}
+const color = (s) => (s === null ? 'grey' : s >= 70 ? 'green' : s >= 45 ? 'amber' : 'red');
+
+function evaluate(L, profile = DEFAULT_PROFILE) {
+  const flt = applyFilters(L, profile), trust = dealerTrust(L.dealer, L.franchise), tw = tierWeights(profile, trust.mult);
+  const crit = { price: sPrice(L), km_age: sKmAge(L), comfort: sComfort(L), warranty: sWarranty(L, tw) };
+  crit.dealer = [trust.known || L.franchise ? trust.score : null, `trust ${trust.score}` + (trust.known ? '' : ' (no rating data)')];
+  crit.spec = sSpec(L);
+  crit.reliability = [null, 'model-knowledge pass pending'];
+  const W = profile.weights, avail = Object.entries(crit).filter(([, v]) => v[0] !== null);
+  const wsum = avail.reduce((s, [k]) => s + W[k], 0);
+  const total = wsum ? Math.round(avail.reduce((s, [k, v]) => s + W[k] * v[0], 0) / wsum) : null;
+  const coverage = Math.round(wsum / Object.values(W).reduce((s, x) => s + x, 0) * 100) / 100;
+  const b = profile.bands, t = total || 0;
+  const base = t >= b.strong ? 'Strong' : t >= b.maybe ? 'Maybe' : 'Skip';
+  const band = flt.reject.length ? 'Filtered out' : coverage < 0.5 ? 'Not enough data' : base + (coverage < 0.7 ? '?' : '');
+  const flags = [], qs = [], w = L.warranty;
+  if (!w.months || w.terms_vary) { flags.push('Warranty terms unclear'); qs.push('Who gives the warranty, for how long, and what is excluded?'); }
+  if (L.km_per_year && L.km_per_year > 25000) flags.push(`High mileage per year (${fmt(L.km_per_year)} km), likely lease or fleet`);
+  if (L.last_service_km && L.km && L.km - L.last_service_km > 15000) {
+    flags.push(`Last service ${fmt(L.km - L.last_service_km)} km ago`);
+    qs.push('Is a service due now, and is it included in the price?');
+  }
+  if (['erhöhter preis', 'hoher preis', 'elevated price', 'high price'].includes(L.price_label)) flags.push('Priced above market');
+  if (L.flags.tow_bar) flags.push('Tow bar fitted, ask how it was used');
+  if (!L.flags.navigation) { flags.push('Built-in navigation not confirmed'); qs.push('Exact equipment list, including navigation?'); }
+  qs.push('VIN, for a recall check and OEM service-history request?');
+  return {
+    band, score: total, coverage, provisional: coverage < 0.7, reject: flt.reject, unknown: flt.unknown,
+    chips: Object.entries(crit).map(([k, v]) => ({ key: k, score: v[0] !== null ? Math.round(v[0]) : null, color: color(v[0]), note: v[1] })),
+    flags: flags.slice(0, 3), questions: qs.slice(0, 3), cost: runningCost(L, profile), dealer_trust: trust,
+  };
+}
+
+
+
+
+
+const KEY = 'carscout:data', BKP = 'carscout:backup', BAD = 'carscout:corrupt';
+const CAP = 4.8 * 1024 * 1024, SCHEMA = 1;
+const MIGRATIONS = {};
+const clone = (x) => JSON.parse(JSON.stringify(x));
+const isObj = (x) => x && typeof x === 'object' && !Array.isArray(x);
+const fresh = () => ({ schema: SCHEMA, user_id: 'local', profile: clone(DEFAULT_PROFILE), ui: {}, listings: [], created: new Date().toISOString() });
+function mergeDefaults(p, d) {
+  for (const k of Object.keys(d)) {
+    if (!(k in p)) p[k] = clone(d[k]);
+    else if (isObj(d[k]) && isObj(p[k])) mergeDefaults(p[k], d[k]);
+  }
+  return p;
+}
+const fingerprint = (L) => [L.price, L.km, L.first_reg_year, L.first_reg_month, L.ps, L.dealer && L.dealer.name].join('|');
+
+function createStore(ls) {
+  let data = fresh();
+  const persist = () => { try { ls.setItem(KEY, JSON.stringify(data)); return true; } catch (e) { return false; } };
+  function migrate(d) {
+    for (let v = (d.schema || 0) + 1; v <= SCHEMA; v++) if (MIGRATIONS[v]) d = MIGRATIONS[v](d);
+    d.schema = SCHEMA;
+    return d;
+  }
+  function init() {
+    const raw = ls.getItem(KEY);
+    if (!raw) { data = fresh(); return 'new'; }
+    let d;
+    try { d = JSON.parse(raw); if (!isObj(d) || !Array.isArray(d.listings)) throw 0; }
+    catch (e) { try { ls.setItem(BAD, raw); } catch (e2) {} data = fresh(); return 'corrupt'; }
+    if (d.schema > SCHEMA) { data = d; return 'newer'; }
+    if (d.schema < SCHEMA) { try { ls.setItem(BKP, raw); } catch (e) {} d = migrate(d); }
+    d.profile = mergeDefaults(d.profile || {}, DEFAULT_PROFILE);
+    d.ui = d.ui || {};
+    data = d;
+    if (d.schema === SCHEMA && raw !== JSON.stringify(d)) persist();
+    return 'ok';
+  }
+  const api = {
+    init,
+    get: () => data,
+    listings: () => data.listings,
+    find: (id) => data.listings.find((x) => x.id === id),
+    add(L) {
+      const id = fingerprint(L), rec = { id, user_id: data.user_id, saved_at: Date.now(), L };
+      const i = data.listings.findIndex((x) => x.id === id), prev = i >= 0 ? data.listings[i] : null;
+      if (i >= 0) data.listings[i] = rec; else data.listings.push(rec);
+      if (persist()) return id;
+      if (i >= 0) data.listings[i] = prev; else data.listings.pop();
+      return null;
+    },
+    remove(id) { data.listings = data.listings.filter((x) => x.id !== id); return persist(); },
+    setUI(patch) { const old = data.ui; data.ui = { ...(data.ui || {}), ...patch }; if (persist()) return true; data.ui = old; return false; },
+    setProfile(p) { const old = data.profile; data.profile = p; if (persist()) return true; data.profile = old; return false; },
+    usage() {
+      const chars = [KEY, BKP, BAD].reduce((s, k) => s + (ls.getItem(k) || '').length, 0), bytes = chars * 2;
+      return { bytes, cap: CAP, pct: Math.min(100, bytes / CAP * 100), count: data.listings.length };
+    },
+    exportJSON: () => JSON.stringify(data),
+    importJSON(text) {
+      let d;
+      try { d = JSON.parse(text); } catch (e) { return { ok: false, error: 'Not valid JSON' }; }
+      if (!isObj(d) || !Array.isArray(d.listings) || !d.listings.every((x) => x && isObj(x.L))) return { ok: false, error: 'Not a Car shortlist backup' };
+      if (d.schema > SCHEMA) return { ok: false, error: 'Backup is from a newer version' };
+      const before = data;
+      try { ls.setItem(BKP, JSON.stringify(before)); } catch (e) {}
+      d = migrate(d);
+      d.profile = mergeDefaults(d.profile || {}, DEFAULT_PROFILE);
+      data = d;
+      if (!persist()) { data = before; return { ok: false, error: 'Storage full' }; }
+      return { ok: true, count: d.listings.length };
+    },
+    reset() { [KEY, BKP, BAD].forEach((k) => ls.removeItem(k)); data = fresh(); return persist(); },
+  };
+  return api;
+}
+
+
+
+
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const cp = (x) => JSON.parse(JSON.stringify(x));
+const LABEL = { price: 'Price', km_age: 'Mileage and age', comfort: 'Comfort', warranty: 'Warranty', dealer: 'Dealer', spec: 'Equipment', reliability: 'Reliability' };
+const FUELS = [['petrol', 'Petrol'], ['diesel', 'Diesel'], ['hybrid', 'Hybrid'], ['phev_petrol', 'Plug-in petrol'], ['phev_diesel', 'Plug-in diesel'], ['ev', 'Electric']];
+const YEAR_MAX = new Date().getFullYear();
+const RANGES = { max_price: [10000, 60000, 500], max_km: [10000, 200000, 5000], min_year: [2015, YEAR_MAX, 1] };
+const RLABEL = { max_price: (v) => '€' + fmt(v), max_km: (v) => fmt(v) + ' km', min_year: (v) => v + ' or newer' };
+
+let store, S = { tab: 'check', screen: null, cur: null, msg: '', kmYear: null, sort: ['score', -1], draft: null };
+try { store = createStore(window.localStorage); store.init(); } catch (e) { store = createStore({ getItem: () => null, setItem() { throw 0; }, removeItem() {} }); store.init(); S.noStorage = true; }
+
+const profile = () => store.get().profile;
+const configured = () => !!(store.get().ui && store.get().ui.configured);
+const cap = (s) => (s ? s[0].toUpperCase() + s.slice(1).replace('_', ' ') : '');
+function toast(t) { const el = $('#toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('on'), 2200); }
+const sumLine = (L) => [L.price && '€' + fmt(L.price), L.km != null && fmt(L.km) + ' km',
+  L.first_reg_year && (L.first_reg_month ? String(L.first_reg_month).padStart(2, '0') + '/' : '') + L.first_reg_year,
+  L.ps && L.ps + ' PS', cap(L.fuel), cap(L.transmission), L.owners != null && L.owners + (L.owners === 1 ? ' owner' : ' owners')].filter(Boolean).join(' · ');
+const reqLine = () => {
+  const f = profile().filters, fuel = f.fuel_in.length ? f.fuel_in.map((x) => (FUELS.find((y) => y[0] === x) || [0, x])[1]).join(', ') : 'Any fuel';
+  return [f.max_price && '≤ €' + fmt(f.max_price), f.max_km && '≤ ' + fmt(f.max_km) + ' km', f.min_year && f.min_year + '+', fuel,
+    f.max_owners && '≤ ' + f.max_owners + ' owners', f.seller_in.length === 1 ? cap(f.seller_in[0]) + ' only' : null].filter(Boolean).join(' · ');
+};
+const bandClass = (b) => b.split(/[ ?]/)[0];
+const bandColor = (b) => ({ Strong: 'green', Maybe: 'amber', Skip: 'red' }[bandClass(b)] || 'grey');
+
+function analyse(text) {
+  text = String(text || '').trim();
+  if (!text) return toast('Nothing to analyse');
+  S.tab = 'check';
+  if (text.length < 400 && /^https?:\/\/\S+$/.test(text)) { S.screen = null; S.msg = 'link'; return render(); }
+  const L = extract(text);
+  S.msg = '';
+  if (L.page_type === 'results') { S.screen = 'results'; S.cur = { cards: parseCards(text) }; }
+  else if (!(L.price || L.km || L.first_reg_year)) { S.screen = null; S.msg = 'unreadable'; }
+  else { S.screen = 'verdict'; S.cur = { L, id: null }; S.kmYear = null; }
+  render(); scrollTo(0, 0);
+}
+async function pasteClip() {
+  try { const t = await navigator.clipboard.readText(); if (!t.trim()) return toast('Clipboard is empty'); analyse(t); }
+  catch (e) { toast('Paste into the box instead'); const ta = $('#ta'); if (ta) ta.focus(); }
+}
+function ring(score) {
+  const r = 34, c = 2 * Math.PI * r, v = score == null ? 0 : score;
+  return `<svg class="ring" width="84" height="84" viewBox="0 0 84 84"><circle cx="42" cy="42" r="${r}" fill="none" stroke="rgba(255,255,255,.3)" stroke-width="8"/><circle cx="42" cy="42" r="${r}" fill="none" stroke="#fff" stroke-width="8" stroke-linecap="round" stroke-dasharray="${c * v / 100} ${c}" transform="rotate(-90 42 42)"/><text x="42" y="42" text-anchor="middle" dominant-baseline="central">${score == null ? '–' : score}</text></svg>`;
+}
+
+function openReq() { S.draft = cp(profile()); S.screen = 'req'; }
+function slider(k) {
+  const [min, max, step] = RANGES[k], v = S.draft.filters[k] ?? max;
+  return `<div class="lb"><span>${{ max_price: 'Budget', max_km: 'Max mileage', min_year: 'First registration' }[k]}</span><b id="o_${k}">${RLABEL[k](v)}</b></div><input type="range" data-k="${k}" min="${min}" max="${max}" step="${step}" value="${v}">`;
+}
+const chip = (on, act, v, t) => `<button class="${on ? 'on' : ''}" data-act="${act}" data-v="${esc(v)}">${esc(t)}</button>`;
+function viewReq() {
+  const f = S.draft.filters, a = S.draft.assumptions, u = store.usage();
+  return `<h1>What are you looking for?</h1><small>Set once. Applies to every listing you check.</small>
+  <div class="card mt">${slider('max_price')}${slider('max_km')}${slider('min_year')}
+  <div class="lb"><span>Fuel</span></div><div class="chips">${FUELS.map(([k, t]) => chip(f.fuel_in.includes(k), 'fuel', k, t)).join('')}</div>
+  <div class="lb"><span>Seller</span></div><div class="chips">${chip(f.seller_in.includes('dealer'), 'seller', 'dealer', 'Dealer')}${chip(f.seller_in.includes('private'), 'seller', 'private', 'Private')}</div>
+  <div class="lb"><span>Previous owners, at most</span></div><div class="chips">${[1, 2, 3].map((n) => chip(f.max_owners === n, 'own', n, String(n))).join('')}${chip(!f.max_owners, 'own', '', 'Any')}</div>
+  <div class="lb"><span>Your driving per year (running cost)</span></div><div class="chips">${[8000, 10000, 15000, 20000].map((n) => chip(a.km_per_year === n, 'kmy', n, n / 1000 + 'k km')).join('')}</div>
+  <small style="display:block;margin-top:10px">Unknown values on a page never reject a car.</small></div>
+  <button class="pri full mt" data-act="cont">${configured() ? 'Save' : 'Continue'}</button>
+  <div class="row mt"><button class="sm" data-act="resetf" style="flex:1">Reset to defaults</button>${configured() ? '<button class="sm" data-act="cancelreq" style="flex:1">Cancel</button>' : ''}</div>
+  <h2>Data on this device</h2><div class="card"><div class="meter"><i style="width:${Math.max(1, u.pct)}%"></i></div><small>${(u.bytes / 1024).toFixed(1)} KB of 4.8 MB · ${u.count} saved. Stays in this browser; page text is never stored.</small>
+  <div class="row mt"><button class="sm" data-act="export" style="flex:1">Export</button><label class="sm filebtn">Restore<input type="file" id="rf" accept=".json,application/json" hidden></label></div>
+  <button class="sm danger full mt" data-act="wipe">Delete all data</button></div>`;
+}
+function viewPaste() {
+  const m = S.msg === 'link' ? `<div class="card mt bad">Links can't be read from the browser: sites block it. Use the Share Sheet shortcut to copy the page text, then tap Paste.</div>`
+    : S.msg === 'unreadable' ? `<div class="card mt bad">Couldn't find price, mileage or first registration in this text. The capture may be incomplete (collapsed sections, wrong page).</div>` : '';
+  return `<div class="row sp"><small>${esc(reqLine())}</small><button class="link" data-act="edit">Edit</button></div>
+  <h1 style="margin-top:14px">Add a listing</h1><small>Copy the page text with your Share Sheet shortcut, then paste.</small>
+  <button class="pri full mt" data-act="paste">Paste from clipboard</button>
+  <textarea id="ta" class="mt" placeholder="Or paste the listing text here"></textarea>
+  <button class="full mt" data-act="analyse">Analyse</button>${m}
+  ${S.noStorage ? '<div class="card mt bad">Storage is blocked in this browser, so nothing can be saved. Turn off Private mode.</div>' : ''}`;
+}
+function viewVerdict(L, id) {
+  const V = evaluate(L, profile()), km = S.kmYear || profile().assumptions.km_per_year, rc = runningCost(L, profile(), km);
+  const chips = V.chips.map((c) => {
+    const note = c.key === 'reliability' ? 'Not assessed yet' : c.score == null ? 'No data on page' : c.note;
+    return `<div class="chip"><div class="ch"><span>${LABEL[c.key]}</span><b>${c.score ?? '–'}</b></div><div class="bar"><i class="${c.color}" style="width:${c.score || 0}%"></i></div><small>${esc(note)}</small></div>`;
+  }).join('');
+  const cost = rc.fixed_plus_fuel_month == null ? '<small>Needs consumption or tax on the page.</small>'
+    : `<div class="big">≈ €${rc.fixed_plus_fuel_month}<small> / month</small></div><small>tax €${rc.tax_month ?? '?'} + fuel €${rc.fuel_month ?? '?'} at ${fmt(km)} km/yr. Excludes ${rc.excludes}.</small>`;
+  const qs = V.questions.map((q) => `<li>${esc(q)}</li>`).join('');
+  return `<button class="back" data-act="back">‹ Back</button>
+  <small style="display:block">${esc(reqLine())}</small>
+  <div class="hero ${bandClass(V.band)}" style="margin-top:10px">${ring(V.score)}<div><div class="b">${esc(V.band)}</div><small>${V.provisional ? 'Provisional: ' : ''}${Math.round(V.coverage * 100)}% of criteria scored</small></div></div>
+  <div class="sum">${esc(sumLine(L))}</div>
+  <small>${esc(L.dealer.name || 'Dealer unknown')}${L.warranty.programme ? ' · ' + esc(L.warranty.programme) : ''}</small>
+  ${V.reject.length ? `<div class="card mt bad">${V.reject.map(esc).join('<br>')}</div>` : ''}
+  <h2>Criteria</h2><div class="grid">${chips}</div>
+  ${V.flags.length ? `<h2>Watch out</h2><div class="card">${V.flags.map((f) => `<div class="flag">${esc(f)}</div>`).join('')}</div>` : ''}
+  <h2>Running cost</h2><div class="card">${cost}<div class="seg">${[8000, 10000, 15000, 20000].map((k) => `<button class="${k === km ? 'on' : ''}" data-act="km" data-v="${k}">${k / 1000}k</button>`).join('')}</div></div>
+  <h2>Ask the dealer</h2><div class="card"><ol style="margin:0;padding-left:20px">${qs}</ol><button class="sm mt" data-act="copyq">Copy questions</button></div>
+  <div class="row mt" style="margin-top:18px">${id ? `<button class="pri" data-act="another" style="flex:2">Check another</button><button class="danger" data-act="del" data-id="${esc(id)}" style="flex:1">Remove</button>` : `<button class="pri full" data-act="save">Save and check another</button>`}</div>`;
+}
+function viewResults() {
+  const cards = S.cur.cards, p = profile();
+  const rows = cards.map((c) => ({ c, f: applyFilters(c, p) })), pass = rows.filter((r) => !r.f.reject.length).length;
+  return `<button class="back" data-act="back">‹ Back</button><h1>Results page</h1>
+  <div class="card"><b>${cards.length} cars</b> found, <b class="${pass ? 'ok' : ''}">${pass} pass</b> your requirements.<br><small>Open a passing car's own page and capture it for the full verdict.</small></div>
+  <h2>Cars</h2><div class="card" style="padding:0">${rows.map(({ c, f }) => `<div class="li" style="cursor:default"><span class="dot ${f.reject.length ? 'red' : 'green'}"></span><div><div class="t">${esc(c.brand)} ${esc(c.model)}</div><small>${esc([c.price && '€' + fmt(c.price), c.km != null && fmt(c.km) + ' km', c.first_reg_year, c.ps && c.ps + ' PS', cap(c.fuel)].filter(Boolean).join(' · '))}</small>${f.reject.length ? `<br><small style="color:var(--r)">${esc(f.reject[0])}</small>` : ''}</div></div>`).join('')}</div>`;
+}
+function ranked() {
+  const p = profile();
+  return store.listings().map((r) => ({ r, V: evaluate(r.L, p) })).sort((a, b) => (b.V.band === 'Filtered out' ? -1 : 0) - (a.V.band === 'Filtered out' ? -1 : 0) || (b.V.score ?? -1) - (a.V.score ?? -1));
+}
+function viewSaved() {
+  if (S.screen === 'compare') return viewCompare();
+  const rk = ranked();
+  if (!rk.length) return `<h1>Saved</h1><div class="card mut">Nothing saved yet. Check a listing and tap Save.</div>`;
+  return `<div class="row sp"><h1>Saved</h1><button class="sm" data-act="compare">Compare</button></div><div class="card" style="padding:0">${rk.map(({ r, V }) => `<div class="li" data-act="open" data-id="${esc(r.id)}"><span class="dot ${bandColor(V.band)}"></span><div><div class="t">${esc(sumLine(r.L).split(' · ').slice(0, 3).join(' · '))}</div><small>${esc(r.L.dealer.name || '')} · ${esc(V.band)}</small></div><span class="sc">${V.score ?? '–'}</span></div>`).join('')}</div>`;
+}
+function viewCompare() {
+  const [key, dir] = S.sort, p = profile();
+  const rows = store.listings().map((r) => { const V = evaluate(r.L, p), L = r.L, ch = Object.fromEntries(V.chips.map((c) => [c.key, c.score]));
+    return { id: r.id, band: V.band, score: V.score, price: L.price, km: L.km, year: L.first_reg_year, ps: L.ps, cost: V.cost.fixed_plus_fuel_month, comfort: ch.comfort, warranty: ch.warranty }; });
+  const val = (r) => (key === 'score' && r.band === 'Filtered out' ? -1 : r[key] ?? (dir > 0 ? 1e12 : -1));
+  rows.sort((a, b) => (val(a) - val(b)) * dir);
+  const th = (k, t) => `<th data-act="sort" data-k="${k}">${t}${key === k ? (dir > 0 ? ' ▲' : ' ▼') : ''}</th>`;
+  return `<div class="row sp"><h1>Compare</h1><button class="sm" data-act="list">List</button></div><div class="scroll"><table><tr>${th('score', 'Score')}<th>Band</th>${th('price', 'Price')}${th('km', 'km')}${th('year', 'Year')}${th('ps', 'PS')}${th('cost', '€/mo')}${th('comfort', 'Comfort')}${th('warranty', 'Warranty')}</tr>
+  ${rows.map((r) => `<tr data-act="open" data-id="${esc(r.id)}"><td><b>${r.score ?? '–'}</b></td><td><span class="dot ${bandColor(r.band)}" style="display:inline-block;vertical-align:middle;margin-right:6px"></span>${esc(r.band)}</td><td>${r.price ? '€' + fmt(r.price) : '–'}</td><td>${r.km != null ? fmt(r.km) : '–'}</td><td>${r.year ?? '–'}</td><td>${r.ps ?? '–'}</td><td>${r.cost ?? '–'}</td><td>${r.comfort ?? '–'}</td><td>${r.warranty ?? '–'}</td></tr>`).join('')}</table></div>`;
+}
+function render() {
+  let h;
+  if (S.tab === 'check') {
+    if (!configured() && S.screen !== 'req') openReq();
+    h = S.screen === 'req' ? viewReq() : S.screen === 'verdict' ? viewVerdict(S.cur.L, S.cur.id) : S.screen === 'results' ? viewResults() : viewPaste();
+  } else h = S.screen === 'verdict' ? viewVerdict(S.cur.L, S.cur.id) : viewSaved();
+  $('#app').innerHTML = h;
+  const n = store.listings().length;
+  $('#tabs').innerHTML = [['check', 'Check'], ['saved', 'Saved' + (n ? ' (' + n + ')' : '')]].map(([k, t]) => `<button class="${S.tab === k ? 'on' : ''}" data-act="tab" data-v="${k}">${t}</button>`).join('');
+}
+function download(name, text) {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' })); a.download = name;
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+const toggle = (arr, v) => (arr.includes(v) ? arr.filter((x) => x !== v) : arr.concat(v));
+const ACT = {
+  tab(el) { S.tab = el.dataset.v; S.screen = null; S.msg = ''; render(); scrollTo(0, 0); },
+  paste: pasteClip,
+  analyse() { analyse($('#ta').value); },
+  back() { S.screen = null; S.msg = ''; render(); },
+  edit() { openReq(); render(); },
+  cancelreq() { S.screen = null; render(); },
+  fuel(el) { S.draft.filters.fuel_in = toggle(S.draft.filters.fuel_in, el.dataset.v); render(); },
+  seller(el) { S.draft.filters.seller_in = toggle(S.draft.filters.seller_in, el.dataset.v); render(); },
+  own(el) { S.draft.filters.max_owners = el.dataset.v === '' ? null : +el.dataset.v; render(); },
+  kmy(el) { S.draft.assumptions.km_per_year = +el.dataset.v; render(); },
+  resetf() { S.draft.filters = cp(DEFAULT_PROFILE.filters); S.draft.assumptions = cp(DEFAULT_PROFILE.assumptions); render(); },
+  cont() {
+    if (store.setProfile(S.draft) && store.setUI({ configured: true })) { S.screen = null; toast('Requirements saved'); render(); scrollTo(0, 0); }
+    else toast('Storage full or blocked');
+  },
+  km(el) { S.kmYear = +el.dataset.v; render(); },
+  save() { const id = store.add(S.cur.L); if (id) { toast('Saved'); S.screen = null; S.tab = 'check'; render(); scrollTo(0, 0); } else toast('Storage full: export a backup and remove old ones'); },
+  another() { S.tab = 'check'; S.screen = null; render(); scrollTo(0, 0); },
+  del(el) { store.remove(el.dataset.id); S.screen = null; toast('Removed'); render(); },
+  open(el) { const r = store.find(el.dataset.id); if (r) { S.tab = 'saved'; S.screen = 'verdict'; S.cur = { L: r.L, id: r.id }; S.kmYear = null; render(); scrollTo(0, 0); } },
+  compare() { S.screen = 'compare'; render(); },
+  list() { S.screen = null; render(); },
+  sort(el) { const k = el.dataset.k; S.sort = [k, S.sort[0] === k ? -S.sort[1] : (k === 'price' || k === 'km' || k === 'cost' ? 1 : -1)]; render(); },
+  copyq() {
+    const t = evaluate(S.cur.L, profile()).questions.map((q, i) => `${i + 1}. ${q}`).join('\n');
+    (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => toast('Copied'), () => toast('Copy not allowed here'));
+  },
+  export() { const t = store.exportJSON(); download('car-shortlist-backup.json', t); (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => toast('Downloaded and copied'), () => toast('Downloaded')); },
+  wipe() { if (confirm('Delete all saved listings and settings from this browser?')) { store.reset(); S.screen = null; S.tab = 'check'; render(); toast('Deleted'); } },
+};
+document.addEventListener('click', (e) => { const el = e.target.closest('[data-act]'); if (el && ACT[el.dataset.act]) ACT[el.dataset.act](el); });
+document.addEventListener('input', (e) => {
+  const k = e.target.dataset && e.target.dataset.k;
+  if (!k || e.target.type !== 'range' || !S.draft) return;
+  S.draft.filters[k] = +e.target.value; $('#o_' + k).textContent = RLABEL[k](+e.target.value);
+});
+document.addEventListener('paste', (e) => {
+  if (e.target.id !== 'ta') return;
+  setTimeout(() => { const v = $('#ta').value.trim(); if (v.length > 300 || /^https?:\/\/\S+$/.test(v)) analyse(v); }, 0);
+});
+document.addEventListener('change', async (e) => {
+  if (e.target.id !== 'rf' || !e.target.files[0]) return;
+  const r = store.importJSON(await e.target.files[0].text());
+  toast(r.ok ? `Restored ${r.count} listings` : r.error); S.screen = null; render();
+});
+const hash = decodeURIComponent((location.hash || '').slice(1));
+if (hash.length > 50) { history.replaceState(null, '', location.pathname + location.search); analyse(hash); } else render();
+})();</script></body></html>
