@@ -331,12 +331,13 @@ const DEFAULT_PROFILE = {
 function applyFilters(L, profile = DEFAULT_PROFILE) {
   const f = profile.filters, reject = [], unknown = [];
   const chk = (key, val, bad, msg) => { if (val === null || val === undefined) unknown.push(key); else if (bad(val)) reject.push(msg(val)); };
-  if (f.max_price) chk('price', L.price, (v) => v > f.max_price, (v) => `price ${v} > ${f.max_price}`);
-  if (f.fuel_in && f.fuel_in.length) chk('fuel', L.fuel, (v) => !f.fuel_in.includes(v), (v) => `fuel ${v} not in ${f.fuel_in.join('/')}`);
-  if (f.seller_in && f.seller_in.length) chk('seller', L.seller, (v) => !f.seller_in.includes(v), (v) => `seller ${v} not allowed`);
-  if (f.max_owners) chk('owners', L.owners, (v) => v > f.max_owners, (v) => `owners ${v} > ${f.max_owners}`);
-  if (f.min_year) chk('first_reg_year', L.first_reg_year, (v) => v < f.min_year, (v) => `year ${v} < ${f.min_year}`);
-  if (f.max_km) chk('km', L.km, (v) => v > f.max_km, (v) => `km ${v} > ${f.max_km}`);
+  const FN = { petrol: 'Petrol', diesel: 'Diesel', hybrid: 'Hybrid', phev_petrol: 'Plug-in petrol', phev_diesel: 'Plug-in diesel', ev: 'Electric' };
+  if (f.max_price) chk('price', L.price, (v) => v > f.max_price, (v) => `Price €${fmt(v)} is over your €${fmt(f.max_price)} budget`);
+  if (f.fuel_in && f.fuel_in.length) chk('fuel', L.fuel, (v) => !f.fuel_in.includes(v), (v) => `Fuel is ${FN[v] || v}, not in your list`);
+  if (f.seller_in && f.seller_in.length) chk('seller', L.seller, (v) => !f.seller_in.includes(v), (v) => `Seller is ${v}, not in your list`);
+  if (f.max_owners) chk('owners', L.owners, (v) => v > f.max_owners, (v) => `${v} previous owners, you allow ${f.max_owners}`);
+  if (f.min_year) chk('first_reg_year', L.first_reg_year, (v) => v < f.min_year, (v) => `First registered ${v}, before ${f.min_year}`);
+  if (f.max_km) chk('km', L.km, (v) => v > f.max_km, (v) => `Mileage ${fmt(v)} km is over your ${fmt(f.max_km)} km limit`);
   return { reject, unknown };
 }
 
@@ -356,17 +357,19 @@ const LABEL_SCORE = { 'sehr guter preis': 95, 'very good price': 95, 'guter prei
 const BAND_ORDER = [['sehr guter preis', 95], ['guter preis', 80], ['fairer preis', 60], ['erhöhter preis', 35], ['hoher preis', 15]];
 const KMY = [[10000, 95], [15000, 85], [20000, 70], [30000, 55], [40000, 40], [1e12, 25]];
 const KMT = [[30000, 95], [60000, 80], [90000, 60], [120000, 40], [1e12, 20]];
+const ENG = { 'sehr guter preis': 'very good price', 'guter preis': 'good price', 'fairer preis': 'fair price', 'erhöhter preis': 'elevated price', 'hoher preis': 'high price' };
+const eng = (x) => ENG[x] || x;
 const tab = (x, t) => t.find(([lim]) => x <= lim)[1];
 const fmt = (n) => Number(n).toLocaleString('en-US');
 
 function sPrice(L) {
   const b = L.price_bands, p = L.price;
   if (b && Object.keys(b).length && p) {
-    for (const [name, s] of BAND_ORDER) if (b[name] && b[name][0] <= p && p <= b[name][1]) return [s, 'market band: ' + name];
+    for (const [name, s] of BAND_ORDER) if (b[name] && b[name][0] <= p && p <= b[name][1]) return [s, 'market band: ' + eng(name)];
     const vs = Object.values(b), lo = Math.min(...vs.map((v) => v[0])), hi = Math.max(...vs.map((v) => v[1]));
     return p < lo ? [98, 'below all bands'] : [5, 'above all bands'];
   }
-  if (L.price_label in LABEL_SCORE) return [LABEL_SCORE[L.price_label], L.price_label];
+  if (L.price_label in LABEL_SCORE) return [LABEL_SCORE[L.price_label], eng(L.price_label)];
   return [null, null];
 }
 function sKmAge(L) {
@@ -546,7 +549,7 @@ const sumLine = (L) => [L.price && '€' + fmt(L.price), L.km != null && fmt(L.k
 const reqLine = () => {
   const f = profile().filters, fuel = f.fuel_in.length ? f.fuel_in.map((x) => (FUELS.find((y) => y[0] === x) || [0, x])[1]).join(', ') : 'Any fuel';
   return [f.max_price && '≤ €' + fmt(f.max_price), f.max_km && '≤ ' + fmt(f.max_km) + ' km', f.min_year && f.min_year + '+', fuel,
-    f.max_owners && '≤ ' + f.max_owners + ' owners', f.seller_in.length === 1 ? cap(f.seller_in[0]) + ' only' : null].filter(Boolean).join(' · ');
+    f.max_owners && '≤ ' + f.max_owners + (f.max_owners === 1 ? ' owner' : ' owners'), f.seller_in.length === 1 ? cap(f.seller_in[0]) + ' only' : null].filter(Boolean).join(' · ');
 };
 const bandClass = (b) => b.split(/[ ?]/)[0];
 const bandColor = (b) => ({ Strong: 'green', Maybe: 'amber', Skip: 'red' }[bandClass(b)] || 'grey');
@@ -569,7 +572,7 @@ async function pasteClip() {
 }
 function ring(score) {
   const r = 34, c = 2 * Math.PI * r, v = score == null ? 0 : score;
-  return `<svg class="ring" width="84" height="84" viewBox="0 0 84 84"><circle cx="42" cy="42" r="${r}" fill="none" stroke="rgba(255,255,255,.3)" stroke-width="8"/><circle cx="42" cy="42" r="${r}" fill="none" stroke="#fff" stroke-width="8" stroke-linecap="round" stroke-dasharray="${c * v / 100} ${c}" transform="rotate(-90 42 42)"/><text x="42" y="42" text-anchor="middle" dominant-baseline="central">${score == null ? '–' : score}</text></svg>`;
+  return `<svg class="ring" width="84" height="84" viewBox="0 0 84 84"><circle cx="42" cy="42" r="${r}" fill="none" stroke="rgba(255,255,255,.3)" stroke-width="8"/>${v > 0 ? `<circle cx="42" cy="42" r="${r}" fill="none" stroke="#fff" stroke-width="8" stroke-linecap="round" stroke-dasharray="${c * v / 100} ${c}" transform="rotate(-90 42 42)"/>` : ''}<text x="42" y="42" text-anchor="middle" dominant-baseline="central">${score == null ? '–' : score}</text></svg>`;
 }
 
 function openReq() { S.draft = cp(profile()); S.screen = 'req'; }
@@ -614,7 +617,7 @@ function viewVerdict(L, id) {
   const qs = V.questions.map((q) => `<li>${esc(q)}</li>`).join('');
   return `<button class="back" data-act="back">‹ Back</button>
   <small style="display:block">${esc(reqLine())}</small>
-  <div class="hero ${bandClass(V.band)}" style="margin-top:10px">${ring(V.score)}<div><div class="b">${esc(V.band)}</div><small>${V.provisional ? 'Provisional: ' : ''}${Math.round(V.coverage * 100)}% of criteria scored</small></div></div>
+  <div class="hero ${bandClass(V.band)}" style="margin-top:10px">${ring(V.reject.length ? null : V.score)}<div><div class="b">${esc(V.band)}</div><small>${V.reject.length ? `Fails your requirements. Would score ${V.score ?? '–'}.` : `${V.provisional ? 'Provisional: ' : ''}${Math.round(V.coverage * 100)}% of criteria scored`}</small></div></div>
   <div class="sum">${esc(sumLine(L))}</div>
   <small>${esc(L.dealer.name || 'Dealer unknown')}${L.warranty.programme ? ' · ' + esc(L.warranty.programme) : ''}</small>
   ${V.reject.length ? `<div class="card mt bad">${V.reject.map(esc).join('<br>')}</div>` : ''}
