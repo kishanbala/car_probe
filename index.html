@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Probe">
+<title>Storage probe</title>
+<style>body{font:16px/1.5 system-ui;margin:0;padding:24px;max-width:480px}
+b{font-weight:600}button{font:inherit;padding:12px 16px;margin:4px 0;width:100%}
+pre{background:#eee;padding:12px;border-radius:8px;white-space:pre-wrap;word-break:break-all}</style></head>
+<body>
+<h2>Storage probe</h2>
+<pre id="out"></pre>
+<button id="w">Write marker</button>
+<button id="c">Clear</button>
+<script>
+const K='probe',o=document.getElementById('out');
+const mode=(navigator.standalone||matchMedia('(display-mode: standalone)').matches)?'HOME-SCREEN APP':'SAFARI TAB';
+const h=decodeURIComponent(location.hash.slice(1));
+if(h){try{localStorage.setItem('inbox',h)}catch(e){}history.replaceState(null,'',location.pathname)}
+function show(){let m,i;try{m=localStorage.getItem(K);i=localStorage.getItem('inbox')}catch(e){m='ERR '+e}
+o.textContent='Running as: '+mode+'\nMarker: '+(m||'(empty)')+'\nInbox (from URL #): '+(i?i.slice(0,80):'(empty)')}
+document.getElementById('w').onclick=()=>{localStorage.setItem(K,mode+' @ '+new Date().toLocaleTimeString());show()};
+document.getElementById('c').onclick=()=>{localStorage.removeItem(K);localStorage.removeItem('inbox');show()};
+show();
+</script></body></html>
