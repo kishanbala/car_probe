@@ -353,24 +353,36 @@ function dealerTrust(d, franchise, mu = 4.2, k = 20) {
 }
 const tierWeights = (p, mult) => ({ 1: p.tier_weights[1], 2: p.tier_weights[2] * mult, 3: p.tier_weights[3] * mult });
 
-const LABEL_SCORE = { 'sehr guter preis': 95, 'very good price': 95, 'guter preis': 80, 'good price': 80, 'fairer preis': 60, 'fair price': 60, 'erhöhter preis': 35, 'elevated price': 35, 'hoher preis': 15, 'high price': 15 };
-const BAND_ORDER = [['sehr guter preis', 95], ['guter preis', 80], ['fairer preis', 60], ['erhöhter preis', 35], ['hoher preis', 15]];
 const KMY = [[10000, 95], [15000, 85], [20000, 70], [30000, 55], [40000, 40], [1e12, 25]];
 const KMT = [[30000, 95], [60000, 80], [90000, 60], [120000, 40], [1e12, 20]];
-const ENG = { 'sehr guter preis': 'very good price', 'guter preis': 'good price', 'fairer preis': 'fair price', 'erhöhter preis': 'elevated price', 'hoher preis': 'high price' };
-const eng = (x) => ENG[x] || x;
+
+const RETAIN = [1, .80, .72, .65, .59, .53, .48, .44, .40, .37, .34];
+const retain = (age) => { const a = Math.max(0, Math.min(10, age)), i = Math.min(9, Math.floor(a)); return RETAIN[i] + (RETAIN[i + 1] - RETAIN[i]) * (a - i); };
+const newPrice = (ps) => 8000 + 175 * ps;
+function fairPrice(L) {
+  if (!L.ps || L.age_years == null || L.km == null) return null;
+  const excess = Math.max(-1.5, Math.min(8, (L.km - 12000 * L.age_years) / 10000));
+  return Math.max(3000, Math.round(newPrice(L.ps) * retain(L.age_years) * (1 - 0.008 * excess) / 100) * 100);
+}
+function estConsumption(L) {
+  if (!L.ps) return null;
+  const mult = { petrol: 1, diesel: 0.85, hybrid: 0.85 }[L.fuel];
+  return mult ? Math.round((4.6 + 0.012 * L.ps) * mult * 10) / 10 : null;
+}
+function estTax(L) {
+  if (!L.ps || !['petrol', 'diesel', 'hybrid'].includes(L.fuel)) return null;
+  return Math.round(L.fuel === 'diesel' ? 40 + 0.9 * L.ps : 40 + 0.45 * L.ps);
+}
 const tab = (x, t) => t.find(([lim]) => x <= lim)[1];
 const fmt = (n) => Number(n).toLocaleString('en-US');
 
 function sPrice(L) {
-  const b = L.price_bands, p = L.price;
-  if (b && Object.keys(b).length && p) {
-    for (const [name, s] of BAND_ORDER) if (b[name] && b[name][0] <= p && p <= b[name][1]) return [s, 'market band: ' + eng(name)];
-    const vs = Object.values(b), lo = Math.min(...vs.map((v) => v[0])), hi = Math.max(...vs.map((v) => v[1]));
-    return p < lo ? [98, 'below all bands'] : [5, 'above all bands'];
-  }
-  if (L.price_label in LABEL_SCORE) return [LABEL_SCORE[L.price_label], eng(L.price_label)];
-  return [null, null];
+  const fair = fairPrice(L);
+  if (!fair || !L.price) return [null, null];
+  const r = L.price / fair;
+  if (r < 0.7 || r > 1.25) return [null, `est. fair €${fmt(fair)} is too far from the ask to trust (rule knows power, not segment)`];
+  const pct = Math.round(Math.abs(1 - r) * 100), sc = r <= 0.8 ? 90 : r <= 0.9 ? 78 : r <= 1.0 ? 65 : r <= 1.1 ? 50 : 35;
+  return [sc, `est. fair €${fmt(fair)} (±15%), listing ${pct < 3 ? 'about equal' : pct + '% ' + (r < 1 ? 'below' : 'above')}`];
 }
 function sKmAge(L) {
   if (L.km === null || L.km_per_year === null) return [null, null];
@@ -404,12 +416,12 @@ function sSpec(L) {
 function runningCost(L, profile = DEFAULT_PROFILE, kmYear) {
   const a = profile.assumptions;
   kmYear = kmYear || a.km_per_year;
-  const tax = L.tax_year, fp = L.fuel_price || a.fuel_price_fallback;
-  const fuelM = L.consumption ? L.consumption * a.realworld_factor / 100 * kmYear * fp / 12 : null;
+  const cons = estConsumption(L), tax = estTax(L), fp = a.fuel_price_fallback;
+  const fuelM = cons ? cons / 100 * kmYear * fp / 12 : null;
   const parts = [tax ? tax / 12 : null, fuelM].filter((x) => x !== null);
   return { tax_month: tax ? r1(tax / 12) : null, fuel_month: fuelM ? r1(fuelM) : null,
     fixed_plus_fuel_month: parts.length ? Math.round(parts.reduce((s, x) => s + x, 0)) : null, km_year: kmYear,
-    excludes: 'insurance, parking, depreciation, maintenance' };
+    consumption: cons, tax_year: tax, fuel_price: fp, excludes: 'insurance, parking, depreciation, maintenance' };
 }
 const color = (s) => (s === null ? 'grey' : s >= 70 ? 'green' : s >= 45 ? 'amber' : 'red');
 
@@ -433,7 +445,8 @@ function evaluate(L, profile = DEFAULT_PROFILE) {
     flags.push(`Last service ${fmt(L.km - L.last_service_km)} km ago`);
     qs.push('Is a service due now, and is it included in the price?');
   }
-  if (['erhöhter preis', 'hoher preis', 'elevated price', 'high price'].includes(L.price_label)) flags.push('Priced above market');
+  const fp = fairPrice(L);
+  if (fp && L.price && L.price / fp > 1.15 && L.price / fp <= 1.25) flags.push('Priced above our estimate');
   if (L.flags.tow_bar) flags.push('Tow bar fitted, ask how it was used');
   if (!L.flags.navigation) { flags.push('Built-in navigation not confirmed'); qs.push('Exact equipment list, including navigation?'); }
   qs.push('VIN, for a recall check and OEM service-history request?');
@@ -589,6 +602,7 @@ function viewReq() {
   <div class="lb"><span>Seller</span></div><div class="chips">${chip(f.seller_in.includes('dealer'), 'seller', 'dealer', 'Dealer')}${chip(f.seller_in.includes('private'), 'seller', 'private', 'Private')}</div>
   <div class="lb"><span>Previous owners, at most</span></div><div class="chips">${[1, 2, 3].map((n) => chip(f.max_owners === n, 'own', n, String(n))).join('')}${chip(!f.max_owners, 'own', '', 'Any')}</div>
   <div class="lb"><span>Your driving per year (running cost)</span></div><div class="chips">${[8000, 10000, 15000, 20000].map((n) => chip(a.km_per_year === n, 'kmy', n, n / 1000 + 'k km')).join('')}</div>
+  <div class="lb"><span>Fuel price per litre (running cost)</span></div><div class="chips">${[1.6, 1.75, 1.9, 2.05].map((n) => chip(a.fuel_price_fallback === n, 'fprice', n, '€' + n.toFixed(2))).join('')}</div>
   <small style="display:block;margin-top:10px">Unknown values on a page never reject a car.</small></div>
   <button class="pri full mt" data-act="cont">${configured() ? 'Save' : 'Continue'}</button>
   <div class="row mt"><button class="sm" data-act="resetf" style="flex:1">Reset to defaults</button>${configured() ? '<button class="sm" data-act="cancelreq" style="flex:1">Cancel</button>' : ''}</div>
@@ -612,8 +626,8 @@ function viewVerdict(L, id) {
     const note = c.key === 'reliability' ? 'Not assessed yet' : c.score == null ? 'No data on page' : c.note;
     return `<div class="chip"><div class="ch"><span>${LABEL[c.key]}</span><b>${c.score ?? '–'}</b></div><div class="bar"><i class="${c.color}" style="width:${c.score || 0}%"></i></div><small>${esc(note)}</small></div>`;
   }).join('');
-  const cost = rc.fixed_plus_fuel_month == null ? '<small>Needs consumption or tax on the page.</small>'
-    : `<div class="big">≈ €${rc.fixed_plus_fuel_month}<small> / month</small></div><small>tax €${rc.tax_month ?? '?'} + fuel €${rc.fuel_month ?? '?'} at ${fmt(km)} km/yr. Excludes ${rc.excludes}.</small>`;
+  const cost = rc.fixed_plus_fuel_month == null ? '<small>No estimate for this fuel type yet.</small>'
+    : `<div class="big">≈ €${rc.fixed_plus_fuel_month}<small> / month</small></div><small>Our estimate: ${rc.consumption} l/100 km at €${rc.fuel_price.toFixed(2)}/l = €${rc.fuel_month ?? '?'}, tax about €${rc.tax_year}/yr = €${rc.tax_month ?? '?'}. ${fmt(km)} km/yr. Excludes ${rc.excludes}.</small>`;
   const qs = V.questions.map((q) => `<li>${esc(q)}</li>`).join('');
   return `<button class="back" data-act="back">‹ Back</button>
   <small style="display:block">${esc(reqLine())}</small>
@@ -679,6 +693,7 @@ const ACT = {
   fuel(el) { S.draft.filters.fuel_in = toggle(S.draft.filters.fuel_in, el.dataset.v); render(); },
   seller(el) { S.draft.filters.seller_in = toggle(S.draft.filters.seller_in, el.dataset.v); render(); },
   own(el) { S.draft.filters.max_owners = el.dataset.v === '' ? null : +el.dataset.v; render(); },
+  fprice(el) { S.draft.assumptions.fuel_price_fallback = +el.dataset.v; render(); },
   kmy(el) { S.draft.assumptions.km_per_year = +el.dataset.v; render(); },
   resetf() { S.draft.filters = cp(DEFAULT_PROFILE.filters); S.draft.assumptions = cp(DEFAULT_PROFILE.assumptions); render(); },
   cont() {
